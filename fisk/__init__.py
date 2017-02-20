@@ -33,6 +33,7 @@ from Crypto.Hash import SHA, MD5
 from Crypto.PublicKey import RSA
 import os
 
+
 class XMLValidator:
     """
     base validator class
@@ -59,7 +60,7 @@ class XMLValidatorLen(XMLValidator):
     def validate(self, value):
         if(value == None):
             return True
-        if (type(value) == unicode or type(value) == str):
+        if type(value) == str:
             lenght = len(value)
             if(lenght >=self.min and lenght <=self.max):
                 return True
@@ -74,14 +75,14 @@ class XMLValidatorRegEx(XMLValidator):
         Args: 
             regex (str): is regular expression
         """
-        if(type(regex) == unicode):
+        if type(regex) == str:
             self.regex = re.compile(regex, re.UNICODE)
         else:
             self.regex = re.compile(regex, re.UNICODE)
     def validate(self, value):
         if(value == None):
             return True
-        if (type(value) == unicode or type(value) == str):
+        if type(value) == str:
             if(self.regex.match(value) != None):
                 return True
         return False
@@ -237,7 +238,7 @@ class XMLElement(object):
                             raise ValueError("Attribute " + key + " of class " + self.__class__.__name__ + " is required!")
                 value = self.__dict__['items'][key] 
                 if value != None:
-                    if(type(value) is str or type(value) is unicode):
+                    if type(value) is str or type(value) is str:
                         svar = et.SubElement(xml, self.__dict__["namespace"] + key)
                         svar.text = value
                     elif(type(value) is list):
@@ -268,7 +269,7 @@ class XMLElement(object):
         if name == "items":
             return
         if(name == "text"):
-            if(type(value) == str or type(value) == unicode):
+            if type(value) == str:
                 if(self._validateValue(name, value)):
                     self.__dict__['items'] = dict()
                     self.__dict__['text'] = value
@@ -412,28 +413,29 @@ class FiskSOAPClient(object):
         """
         xml = message
         
-        r = requests.post(r"https://" + self.host + r":" + self.port + self.url, headers = {
+        response = requests.post(r"https://" + self.host + r":" + self.port + self.url, headers = {
                 "Host": self.host,
                 "Content-Type": "text/xml; charset=UTF-8",
                # "Content-Length": len(xml),
                 "SOAPAction": self.url
-            }, data = xml, verify=self.verify)
+            }, data=xml, verify=self.verify)
         
-        response = None
-        if(r.status_code == requests.codes.ok):
-            response = r.text
+        response_data = None
+        if(response.status_code == requests.codes.ok):
+            response_data = response.content
         else:
-            if (r.headers['Content-Type']=="text/xml"):
-                response = r.content
+            if (response.headers['Content-Type']=="text/xml"):
+                response_data = response.content
             else:
-                raise FiskSOAPClientError(str(r.status_code) + ": " + r.reason)
-        responseXML = et.fromstring(str(response))
+                raise FiskSOAPClientError(str(response.status_code) + ": " + response.reason)
+
+        responseXML = et.fromstring(response_data)
         for relement in responseXML.iter():
-                if(relement.tag.find("faultstring") != -1):
-                    raise FiskSOAPClientError(relement.text)
+            if(relement.tag.find("faultstring") != -1):
+                raise FiskSOAPClientError(relement.text)
         if(not raw):
-            response = responseXML
-        return response
+            response_data = responseXML
+        return response_data
 
 class FiskSOAPClientDemo(FiskSOAPClient):
     """
@@ -488,10 +490,9 @@ class Signer(object):
         """
         
         self.init_error = []
-        self.key = open(key).read()
-        self.password = password
-        self.certificate = open(cert).read()
-        
+        self.key = open(key, 'rb').read()
+        self.password = str.encode(password)
+        self.certificate = open(cert, 'rb').read()
     
     def signXML(self, fiskXML, elementToSign):
         """
@@ -724,7 +725,7 @@ class FiskXMLRequest(FiskXMLElement):
         reply = cl.send(message)
         has_signature = False
         verified_reply = None
-        if(reply.find(".//" + signxmlNS + "Signature") != None):
+        if reply.find(".//" + signxmlNS + "Signature") != None:
             has_signature = True
         if (has_signature == True):
             if (verifier != None and isinstance(verifier, Verifier)):
@@ -812,7 +813,7 @@ class EchoRequest(FiskXMLRequest):
                 reply = relement.text
                 
             if(reply == False):
-                for relement in self.__dict__['lastResponse'].iter(self.__dict__['namespace'] + "PorukaGreske"):
+                for element in self.__dict__['lastResponse'].iter(self.__dict__['namespace'] + "PorukaGreske"):
                     self.__dict__['lastError'].append(element.text)
         
         return reply
@@ -983,7 +984,7 @@ def zastitni_kod(oib, datumVrijeme, brRacuna, ozPoslovnogP, ozUredaja, ukupnoIzn
     forsigning = oib + datumVrijeme + brRacuna + ozPoslovnogP + ozUredaja + ukupnoIznos
 
     key = RSA.importKey(open(key_filename).read(), key_password)
-    h = SHA.new(forsigning)
+    h = SHA.new(forsigning.encode("UTF-8"))
     signer = PKCS1_v1_5.new(key)
     signature = signer.sign(h)
     
