@@ -552,7 +552,7 @@ class Verifier(object):
         mpath = os.path.dirname(__file__) + '/CAcerts'
         self.CAs = mpath + "/demoCAfile.pem"
         prodCAfile = mpath + "/prodCAfile.pem"
-        if(production):
+        if (production):
             self.CAs = prodCAfile
 
     def verifiyXML(self, xml):
@@ -563,9 +563,10 @@ class Verifier(object):
             None if not
         """
         root = xml
-        rvalue = None
+        verifier = XMLVerifier()
+        verifier.excise_empty_xmlns_declarations = True
+        rvalue = verifier.verify(root, ca_pem_file=self.CAs, validate_schema=False)
 
-        rvalue = XMLVerifier().verify(root, ca_pem_file=self.CAs, validate_schema=False)
         if(rvalue.signed_xml != None):
             rvalue = rvalue.signed_xml
         else:
