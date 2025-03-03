@@ -1,6 +1,6 @@
-lxml==4.6
-requests==2.27.1
-signxml==2.10.1
-cryptography==40.0.2
-pyOpenSSL==23.2.0
-pycryptodome==3.4.3
+lxml==5.3.1
+requests==2.32.3
+signxml==4.0.3
+cryptography==44.0.2
+pyOpenSSL==25.0.0
+pycryptodome==3.21.0
