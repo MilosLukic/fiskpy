@@ -19,9 +19,12 @@ limitations under the License.
 
 VERSION = 0.8.1
 """
-
+import base64
 from uuid import uuid4
 from datetime import datetime
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 from lxml import etree as et
 import requests
 from signxml import XMLSigner, XMLVerifier, SignatureConfiguration, SignatureMethod, \
@@ -584,6 +587,33 @@ class Signer(object):
 
         return et.tostring(signed_root)
 
+def extract_cert_from_xml(xml):
+    """
+    Extracts the X.509 certificate from a ds:Signature element in an XML document.
+
+    Args:
+        xml (str or Element): The XML document or root element.
+
+    Returns:
+        x509.Certificate: Parsed certificate object, or None if not found.
+    """
+    if isinstance(xml, str):
+        root = et.fromstring(xml)
+    else:
+        root = xml
+
+    namespaces = {
+        'ds': 'http://www.w3.org/2000/09/xmldsig#'
+    }
+
+    x509_data = root.find(".//ds:X509Certificate", namespaces=namespaces)
+    if x509_data is None or not x509_data.text:
+        print("No X.509 certificate found in XML.")
+        return None
+
+    cert_b64 = x509_data.text.strip()
+    cert_der = base64.b64decode(cert_b64)
+    return x509.load_der_x509_certificate(cert_der, backend=default_backend())
 
 class Verifier(object):
     """
@@ -604,7 +634,8 @@ class Verifier(object):
         mpath = os.path.dirname(__file__) + '/CAcerts'
         self.CAs = mpath + "/demoCAfile.pem"
         prodCAfile = mpath + "/prodCAfile.pem"
-        if (production):
+
+        if production:
             self.CAs = prodCAfile
 
     def verifiyXML(self, xml):
@@ -615,12 +646,18 @@ class Verifier(object):
             None if not
         """
         root = xml
+        cert = extract_cert_from_xml(root)
+        if not cert:
+            raise ValueError("Signature certificate not found in xml response.")
+
         verifier = XMLVerifier()
         verifier.excise_empty_xmlns_declarations = True
+
         rvalue = verifier.verify(
             root,
             ca_pem_file=self.CAs,
             validate_schema=False,
+            x509_cert=cert,
             expect_config=SignatureConfiguration(
                 signature_methods=frozenset({SignatureMethod.RSA_SHA1}),
                 digest_algorithms=frozenset({DigestAlgorithm.SHA1})
